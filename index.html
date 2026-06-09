@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Magyarországi szülészetek térképe</title>
+<meta name="description" content="A jelenleg működő, valamint az utóbbi években bezárt vagy szünetelő szülészeti osztályok interaktív térképe Magyarországon." />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f5f5f5; color: #222; }
+  .container { max-width: 100%; padding: 16px; }
+  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 500; }
+  .subtitle { margin: 0 0 16px; font-size: 13px; color: #666; }
+  .map-wrap { position: relative; width: 100%; height: 70vh; min-height: 480px; border-radius: 12px; overflow: hidden; border: 1px solid #e0e0e0; background: #fff; }
+  .map-wrap.fullscreen { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 9999; border-radius: 0; border: none; }
+  #map { width: 100%; height: 100%; }
+  .fs-btn { position: absolute; top: 12px; right: 12px; z-index: 1000; background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.12); display: flex; align-items: center; gap: 6px; color: #222; }
+  .fs-btn:hover { background: #f7f7f7; }
+  .fs-icon { width: 14px; height: 14px; display: inline-block; }
+  .legend { position: absolute; bottom: 16px; left: 16px; z-index: 1000; background: rgba(255,255,255,0.95); border: 1px solid #ddd; border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.6; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+  .legend-row { display: flex; align-items: center; gap: 8px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.25); flex-shrink: 0; }
+  .footer-note { margin-top: 12px; font-size: 12px; color: #666; line-height: 1.5; }
+  .footer-note a { color: #185fa5; text-decoration: none; }
+  .footer-note a:hover { text-decoration: underline; }
+  .leaflet-popup-content { font-size: 13px; line-height: 1.5; margin: 10px 12px; max-width: 260px; }
+  .leaflet-popup-content strong { font-size: 14px; color: #222; }
+  .leaflet-popup-content .city { color: #666; font-size: 12px; }
+  .leaflet-popup-content .note { color: #444; font-size: 12px; margin-top: 4px; }
+  .leaflet-popup-content .tag { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-top: 6px; font-weight: 500; }
+  .tag-state { background: #e6f1fb; color: #0c447c; }
+  .tag-private { background: #e8f5e9; color: #1b5e20; }
+  .tag-closed { background: #fcebeb; color: #791f1f; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Magyarországi szülészetek</h1>
+  <p class="subtitle">A jelenleg működő állami és magán szülészeti osztályok, valamint az utóbbi években bezárt vagy szünetelő szülészetek.</p>
+
+  <div class="map-wrap" id="mapWrap">
+    <button class="fs-btn" id="fsBtn" aria-label="Teljes képernyő">
+      <svg class="fs-icon" id="fsIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
+      </svg>
+      <span id="fsLabel">Teljes képernyő</span>
+    </button>
+    <div id="map"></div>
+    <div class="legend">
+      <div class="legend-row"><span class="legend-dot" style="background:#185fa5"></span><span>Állami szülészet (működik)</span></div>
+      <div class="legend-row"><span class="legend-dot" style="background:#4caf50"></span><span>Magánszülészet</span></div>
+      <div class="legend-row"><span class="legend-dot" style="background:#a32d2d"></span><span>Bezárt vagy szünetel</span></div>
+    </div>
+  </div>
+
+  <p class="footer-note">
+    Kattints egy jelölőre a részletekért. Utolsó frissítés: 2026. június. Forrás: hazai sajtóhírek (Telex, Népszava, HVG, mfor.hu, EgészségKalauz, Borsod24, Pénzcentrum) és kórházi weboldalak. Az adatok hetente változhatnak – ha pontatlanságot találsz, jelezd a <a href="https://github.com/" target="_blank" rel="noopener">GitHub repón</a>.
+  </p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+  const hospitals = [
+    // BUDAPEST - STATE
+    { lat:47.4891633, lng:19.0680092, name:"Semmelweis I. Sz. Szülészeti Klinika", city:"Budapest VIII., Baross u.", type:"state", note:"Egyetemi klinika, PIC III. szint" },
+    { lat:47.4826734, lng:19.0817872, name:"Semmelweis II. Sz. Szülészeti Klinika", city:"Budapest VIII., Üllői út", type:"state", note:"Egyetemi klinika, magas kockázatú szülések" },
+    { lat:47.4686229, lng:19.0346319, name:"Szent Imre Egyetemi Oktatókórház", city:"Budapest XI.", type:"state" },
+    { lat:47.5315077, lng:19.0715101, name:"Észak-Pesti Centrumkórház – Honvédkórház", city:"Budapest XIII., Róbert Károly krt.", type:"state" },
+    { lat:47.4239005, lng:19.1317619, name:"Jahn Ferenc Dél-pesti Kórház", city:"Budapest XX.", type:"state", note:"Neonatológiai Intenzív Centrum" },
+    { lat:47.5088679, lng:19.0056852, name:"Szent János Kórház", city:"Budapest XII.", type:"state" },
+    { lat:47.4780087, lng:19.1611372, name:"Bajcsy-Zsilinszky Kórház", city:"Budapest X.", type:"state" },
+    { lat:47.5398407, lng:19.0302331, name:"Szent Margit Kórház", city:"Budapest III. (Óbuda)", type:"state" },
+    { lat:47.5195381, lng:19.1035177, name:"Uzsoki Utcai Kórház", city:"Budapest XIV.", type:"state" },
+    { lat:47.501624,  lng:19.0785459, name:"Péterfy Sándor Utcai Kórház", city:"Budapest VII.", type:"state" },
+
+    // BUDAPEST - PRIVATE
+    { lat:47.5267207, lng:19.0794117, name:"TritonLife Róbert Magánkórház", city:"Budapest XIII.", type:"private", note:"A legtöbb magánszülés Magyarországon" },
+    { lat:47.4954412, lng:19.0185034, name:"Maternity Magánklinika", city:"Budapest XII.", type:"private" },
+    { lat:47.4746312, lng:19.069537,  name:"Duna Medical Center", city:"Budapest IX.", type:"private" },
+
+    // REGIONAL UNIVERSITY CLINICS
+    { lat:46.079117,  lng:18.2093012, name:"PTE Szülészeti és Nőgyógyászati Klinika", city:"Pécs", type:"state", note:"Egyetemi klinika, dél-dunántúli régió" },
+    { lat:46.2460386, lng:20.1474671, name:"SZTE Szülészeti és Nőgyógyászati Klinika", city:"Szeged", type:"state", note:"Egyetemi klinika, dél-alföldi régió" },
+    { lat:47.5574587, lng:21.6251915, name:"DE KK Szülészeti és Nőgyógyászati Klinika", city:"Debrecen", type:"state", note:"Egyetemi klinika, észak-alföldi régió" },
+
+    // COUNTY CENTERS
+    { lat:48.1203611, lng:20.788772,  name:"BAZ Vármegyei Központi Kórház", city:"Miskolc", type:"state", note:"Regionális szülészeti centrum" },
+    { lat:47.6712261, lng:17.6498824, name:"Petz Aladár Egyetemi Oktató Kórház", city:"Győr", type:"state", note:"Nyugat-Dunántúl regionális központja" },
+    { lat:47.090947,  lng:17.9104293, name:"Csolnoky Ferenc Kórház", city:"Veszprém", type:"state", note:"kb. 1500-1700 szülés/év" },
+    { lat:46.8359899, lng:16.845861,  name:"Zala Vármegyei Szent Rafael Kórház", city:"Zalaegerszeg", type:"state", note:"A keszthelyi bezárás óta felvevőhely" },
+    { lat:46.4522361, lng:16.9991958, name:"Kanizsai Dorottya Kórház", city:"Nagykanizsa", type:"state" },
+    { lat:47.2384682, lng:16.6196138, name:"Markusovszky Egyetemi Oktatókórház", city:"Szombathely", type:"state" },
+    { lat:46.3602041, lng:17.7977247, name:"Somogy Vármegyei Kaposi Mór Oktató Kórház", city:"Kaposvár", type:"state" },
+    { lat:47.1921901, lng:18.4356514, name:"Fejér Vármegyei Szent György Kórház", city:"Székesfehérvár", type:"state" },
+    { lat:47.5792905, lng:18.3939062, name:"Szent Borbála Kórház", city:"Tatabánya", type:"state" },
+    { lat:47.9050193, lng:20.3738365, name:"Markhot Ferenc Oktatókórház", city:"Eger", type:"state" },
+    { lat:48.1157073, lng:19.8093453, name:"Szent Lázár Vármegyei Kórház", city:"Salgótarján", type:"state" },
+    { lat:47.1574694, lng:20.1721567, name:"Hetényi Géza Kórház", city:"Szolnok", type:"state", note:"A mezőtúri ellátást is átvette (2025–)" },
+    { lat:46.9100467, lng:19.6730135, name:"Bács-Kiskun Vármegyei Oktatókórház", city:"Kecskemét", type:"state" },
+    { lat:46.1748287, lng:18.9623779, name:"Bajai Szent Rókus Kórház", city:"Baja", type:"state" },
+    { lat:46.6824493, lng:21.1041087, name:"Réthy Pál Tagkórház", city:"Békéscsaba", type:"state" },
+    { lat:47.9502694, lng:21.7296471, name:"Szabolcs-Szatmár-Bereg V. Oktatókórház", city:"Nyíregyháza (Jósa András)", type:"state" },
+    { lat:46.6422198, lng:21.2762973, name:"Pándy Kálmán Tagkórház", city:"Gyula", type:"state" },
+    { lat:46.5594409, lng:20.6607956, name:"Orosházi Dr. László Elek Kórház", city:"Orosháza", type:"state", note:"Műtők és szülőszoba 2025-2026 felújítás alatt" },
+    { lat:47.6765905, lng:16.5974213, name:"Soproni Erzsébet Oktató Kórház", city:"Sopron", type:"state" },
+    { lat:47.3266178, lng:17.4710692, name:"Pápai Gróf Esterházy Kórház", city:"Pápa", type:"state" },
+    { lat:47.1716864, lng:19.8175425, name:"Toldy Ferenc Kórház", city:"Cegléd", type:"state" },
+    { lat:47.7836138, lng:19.1482974, name:"Jávorszky Ödön Kórház", city:"Vác", type:"state" },
+    { lat:48.0797876, lng:19.3094742, name:"Dr. Kenessey Albert Kórház", city:"Balassagyarmat", type:"state" },
+    { lat:46.9648615, lng:18.9445508, name:"Szent Pantaleon Kórház", city:"Dunaújváros", type:"state" },
+    { lat:47.7910572, lng:18.7449513, name:"Vaszary Kolos Kórház", city:"Esztergom", type:"state" },
+    { lat:48.207792,  lng:22.0902383, name:"Felső-Szabolcsi Szent Damján Kórház", city:"Kisvárda", type:"state", note:"A sátoraljaújhelyi sürgősségi ellátást is felveszi" },
+    { lat:46.3451031, lng:18.7008822, name:"Tolna Vármegyei Balassa János Kórház", city:"Szekszárd", type:"state" },
+    { lat:46.4133194, lng:20.3142056, name:"Hódmezővásárhelyi-Makói EK", city:"Hódmezővásárhely", type:"state", note:"A szentesi szülészetet is átvette" },
+    { lat:47.2261432, lng:21.5431809, name:"Gróf Tisza István Kórház", city:"Berettyóújfalu", type:"state" },
+    { lat:47.6709244, lng:19.6813168, name:"Albert Schweitzer Kórház", city:"Hatvan", type:"state" },
+    { lat:47.3245183, lng:20.9121162, name:"Kátai Gábor Kórház", city:"Karcag", type:"state" },
+    { lat:47.9548728, lng:22.3175941, name:"Mátészalkai Tagkórház", city:"Mátészalka", type:"state", note:"2026. június 15 – augusztus 31. között ideiglenes ellátási rend" },
+    { lat:48.4012,    lng:21.6573,    name:"Sátoraljaújhelyi Erzsébet Kórház", city:"Sátoraljaújhely", type:"state", note:"2025 aug. újranyitott egy hónap szünet után. Hétvégén készenléti ügyelet, rezidens-rotáció. (Forrás: Népszava, 2026. jún.)" },
+
+    // CLOSED / SUSPENDED
+    { lat:47.0017, lng:20.6314, name:"Mezőtúri szülészet", city:"Mezőtúr", type:"closed", note:"2025. márciusától szünetel, 2026. májusi sajtóhír szerint továbbra is zárva. Ellátás: Szolnok." },
+    { lat:46.6531, lng:20.2616, name:"Dr. Bugyi István Kórház", city:"Szentes", type:"closed", note:"2023 eleje óta szünetel – orvoshiány. Ellátás: Szeged / Hódmezővásárhely." },
+    { lat:46.7676, lng:17.2470, name:"Keszthelyi Kórház szülészet", city:"Keszthely", type:"closed", note:"2024. november 4-én véglegesen bezárt. Ellátás: Zalaegerszeg / Nagykanizsa." },
+    { lat:45.9921, lng:18.6837, name:"Mohácsi Kórház szülészet", city:"Mohács", type:"closed", note:"2022. május óta megszűnt – a pécsi klinika vette át." },
+    { lat:46.5808, lng:17.4118, name:"Marcali Kórház szülészet", city:"Marcali", type:"closed", note:"2022. január óta szünetel." },
+    { lat:47.7430, lng:18.1212, name:"Komáromi Kórház", city:"Komárom", type:"closed", note:"2012 tavasza óta nincs szülészet." },
+    { lat:47.0103, lng:16.6042, name:"Körmendi Kórház szülészet", city:"Körmend", type:"closed", note:"2012-ben szűnt meg." },
+    { lat:46.2156, lng:20.4811, name:"Makói Kórház szülészet", city:"Makó", type:"closed", note:"2020-ban szűnt meg." }
+  ];
+
+  const colors = {
+    state:   { fill: "#185fa5", border: "#0c447c", tag: "tag-state",   label: "Állami szülészet (működik)" },
+    private: { fill: "#4caf50", border: "#2e7d32", tag: "tag-private", label: "Magánszülészet" },
+    closed:  { fill: "#a32d2d", border: "#791f1f", tag: "tag-closed",  label: "Bezárt vagy szünetel" }
+  };
+
+  const map = L.map('map', {
+    center: [47.18, 19.5],
+    zoom: 7,
+    minZoom: 6,
+    maxZoom: 18
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19
+  }).addTo(map);
+
+  hospitals.forEach(h => {
+    const c = colors[h.type];
+    const icon = L.divIcon({
+      className: 'custom-marker',
+      html: `<div style="width:14px;height:14px;border-radius:50%;background:${c.fill};border:2px solid #fff;box-shadow:0 0 0 1px ${c.border}, 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7]
+    });
+    const noteHtml = h.note ? `<div class="note">${h.note}</div>` : '';
+    const popup = `<strong>${h.name}</strong><div class="city">${h.city}</div>${noteHtml}<span class="tag ${c.tag}">${c.label}</span>`;
+    L.marker([h.lat, h.lng], { icon }).addTo(map).bindPopup(popup);
+  });
+
+  const wrap = document.getElementById('mapWrap');
+  const btn = document.getElementById('fsBtn');
+  const label = document.getElementById('fsLabel');
+  const fsIcon = document.getElementById('fsIcon');
+  let isFs = false;
+
+  btn.addEventListener('click', () => {
+    isFs = !isFs;
+    wrap.classList.toggle('fullscreen', isFs);
+    label.textContent = isFs ? 'Kilépés' : 'Teljes képernyő';
+    fsIcon.innerHTML = isFs
+      ? '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>'
+      : '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>';
+    setTimeout(() => map.invalidateSize(), 150);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isFs) btn.click();
+  });
+</script>
+</body>
+</html>
